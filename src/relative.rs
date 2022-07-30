@@ -75,6 +75,16 @@ impl<'a> Deref for RelativePath<'a> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<'a> serde::Serialize for RelativePath<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 /// The "owned" analog for [`RelativePath`]. This is not normalized until joined to an absolute path.
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct RelativePathBuf(PathBuf);
@@ -166,6 +176,28 @@ impl Deref for RelativePathBuf {
 
     fn deref(&self) -> &Self::Target {
         self.as_path()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for RelativePathBuf {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for RelativePathBuf {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let path = PathBuf::deserialize(deserializer)?;
+        RelativePathBuf::try_new(path).map_err(|e| D::Error::custom(format!("{}", e)))
     }
 }
 
@@ -298,6 +330,41 @@ mod test {
                 .as_path()
         );
 
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use crate::RelativePath;
+    use crate::RelativePathBuf;
+
+    #[test]
+    fn path_serializes() -> anyhow::Result<()> {
+        let p = RelativePath::try_new("foo/./bar")?;
+        assert_eq!("\"foo/./bar\"", serde_json::to_string(&p)?);
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_serializes() -> anyhow::Result<()> {
+        let p = RelativePathBuf::try_new("foo/./bar")?;
+        assert_eq!("\"foo/./bar\"", serde_json::to_string(&p)?);
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_deserializes() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let serialized_good = "\"foo/./bar/../baz\"";
+        let serialized_absolute = format!("\"{}\"", cwd.display());
+
+        let expected = RelativePathBuf::try_new("foo/./bar/../baz")?;
+        assert_eq!(
+            expected,
+            serde_json::from_str::<RelativePathBuf>(serialized_good)?
+        );
+        assert!(serde_json::from_str::<RelativePathBuf>(&serialized_absolute).is_err());
         Ok(())
     }
 }

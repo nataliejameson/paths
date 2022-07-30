@@ -85,6 +85,16 @@ impl<'a> Deref for AbsolutePath<'a> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<'a> serde::Serialize for AbsolutePath<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 /// The "owned" analog for [`AbsolutePath`]. This attempts to normalize the path on instantiation.
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct AbsolutePathBuf(PathBuf);
@@ -180,6 +190,28 @@ impl Deref for AbsolutePathBuf {
 
     fn deref(&self) -> &Self::Target {
         self.as_path()
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for AbsolutePathBuf {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for AbsolutePathBuf {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let path = PathBuf::deserialize(deserializer)?;
+        AbsolutePathBuf::try_new(path).map_err(|e| D::Error::custom(format!("{}", e)))
     }
 }
 
@@ -348,6 +380,48 @@ mod test {
             original.join(&back_past_root)
         );
 
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use crate::AbsolutePath;
+    use crate::AbsolutePathBuf;
+
+    #[test]
+    fn path_serializes() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let p = AbsolutePath::try_new(&cwd)?;
+        assert_eq!(format!("\"{}\"", cwd.display()), serde_json::to_string(&p)?);
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_serializes() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let p = AbsolutePathBuf::try_new(&cwd)?;
+        assert_eq!(format!("\"{}\"", cwd.display()), serde_json::to_string(&p)?);
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_deserializes() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let serialized_good = format!("\"{}/foo/./bar/../baz\"", cwd.display());
+        let serialized_relative = "\"foo/bar\"".to_owned();
+        let serialized_traversal = format!(
+            "\"{}\"",
+            cwd.join("../".repeat(cwd.components().count())).display()
+        );
+
+        let expected = AbsolutePathBuf::try_new(&cwd.join("foo/baz"))?;
+        assert_eq!(
+            expected,
+            serde_json::from_str::<AbsolutePathBuf>(&serialized_good)?
+        );
+        assert!(serde_json::from_str::<AbsolutePathBuf>(&serialized_relative).is_err());
+        assert!(serde_json::from_str::<AbsolutePathBuf>(&serialized_traversal).is_err());
         Ok(())
     }
 }

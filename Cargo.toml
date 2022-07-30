@@ -21,5 +21,6 @@ thiserror = "1.0.31"
 tracing = "0.1.36"
 
 [features]
+default = ["serde"]
 serde = ["dep:serde", "dep:serde_json"]
 diesel = ["serde"]
