@@ -7,6 +7,7 @@ use gazebo::dupe::Dupe;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 /// A relative path. This is not normalized until joined to an absolute path.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe)]
@@ -172,6 +173,14 @@ impl RelativePathBuf {
         abs: &AbsolutePath,
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
         abs.join_relative(&self.as_relative_path())
+    }
+}
+
+impl FromStr for RelativePathBuf {
+    type Err = NotRelative;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        RelativePathBuf::try_new(s)
     }
 }
 

@@ -10,6 +10,7 @@ use gazebo::dupe::Dupe;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 /// An absolute path. This must be normalized to begin with.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe)]
@@ -200,6 +201,14 @@ impl Deref for AbsolutePathBuf {
 
     fn deref(&self) -> &Self::Target {
         self.as_path()
+    }
+}
+
+impl FromStr for AbsolutePathBuf {
+    type Err = AbsolutePathBufNewError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        AbsolutePathBuf::try_new(s)
     }
 }
 
