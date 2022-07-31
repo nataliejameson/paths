@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 /// An absolute path. This must be normalized to begin with.
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe)]
+#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "diesel",
     derive(diesel::expression::AsExpression, diesel::FromSqlRow)
@@ -102,7 +102,7 @@ impl<'a> serde::Serialize for AbsolutePath<'a> {
 }
 
 /// The "owned" analog for [`AbsolutePath`]. This attempts to normalize the path on instantiation.
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "diesel",
     derive(diesel::expression::AsExpression, diesel::FromSqlRow)

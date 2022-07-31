@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 /// A path that is either Absolute or Relative, but strongly typed either way.
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "diesel",
     derive(diesel::expression::AsExpression, diesel::FromSqlRow)
@@ -137,7 +137,7 @@ where
 }
 
 /// The owned version of [`CombinedPathBuf`]
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "diesel",
     derive(diesel::expression::AsExpression, diesel::FromSqlRow)

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 /// A relative path. This is not normalized until joined to an absolute path.
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe)]
+#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "diesel",
     derive(diesel::expression::AsExpression, diesel::FromSqlRow)
@@ -106,7 +106,7 @@ where
 }
 
 /// The "owned" analog for [`RelativePath`]. This is not normalized until joined to an absolute path.
-#[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
 #[cfg_attr(
     feature = "diesel",
     derive(diesel::expression::AsExpression, diesel::FromSqlRow)
