@@ -190,6 +190,18 @@ impl AbsolutePathBuf {
     }
 }
 
+impl<'a> From<AbsolutePath<'a>> for AbsolutePathBuf {
+    fn from(ap: AbsolutePath<'a>) -> Self {
+        AbsolutePathBuf::new_unchecked(ap.0)
+    }
+}
+
+impl<'a> From<&AbsolutePath<'a>> for AbsolutePathBuf {
+    fn from(ap: &AbsolutePath<'a>) -> Self {
+        AbsolutePathBuf::new_unchecked(ap.0)
+    }
+}
+
 impl AsRef<Path> for AbsolutePathBuf {
     fn as_ref(&self) -> &Path {
         self.as_path()
@@ -295,16 +307,14 @@ mod test {
         );
 
         assert_eq!(
-            Err(AbsolutePathNewError::NotAbsolute(NotAbsolute(
-                String::from("foo.txt")
-            ))),
-            AbsolutePath::try_new("foo.txt")
+            AbsolutePathNewError::NotAbsolute(NotAbsolute(String::from("foo.txt"))),
+            AbsolutePath::try_new("foo.txt").unwrap_err()
         );
         assert_eq!(
-            Err(AbsolutePathNewError::WasNotNormalized(WasNotNormalized(
+            AbsolutePathNewError::WasNotNormalized(WasNotNormalized(
                 cwd.join("foo/../../bar.txt").display().to_string()
-            ))),
-            AbsolutePath::try_new(cwd.join("foo/../../bar.txt").as_path())
+            )),
+            AbsolutePath::try_new(cwd.join("foo/../../bar.txt").as_path()).unwrap_err()
         );
 
         Ok(())
@@ -329,11 +339,11 @@ mod test {
             original.join("./baz")?.as_path()
         );
         assert_eq!(
-            Err(AbsoluteJoinError::JoinedAbsolute(JoinedAbsolute(
+            AbsoluteJoinError::JoinedAbsolute(JoinedAbsolute(
                 original.as_ref().display().to_string(),
                 cwd.as_path().display().to_string()
-            ))),
-            original.join(cwd.as_path())
+            )),
+            original.join(cwd.as_path()).unwrap_err()
         );
 
         let back_to_root = "../".repeat(cwd.components().count() + 1);
@@ -344,13 +354,13 @@ mod test {
         let back_past_root = "../".repeat(cwd.components().count() + 2);
 
         assert_eq!(
-            Err(AbsoluteJoinError::NormalizationFailed(NormalizationFailed(
+            AbsoluteJoinError::NormalizationFailed(NormalizationFailed(
                 cwd.join("foo/bar")
                     .join(&back_past_root)
                     .display()
                     .to_string()
-            ))),
-            original.join(&back_past_root)
+            )),
+            original.join(&back_past_root).unwrap_err()
         );
 
         Ok(())
@@ -373,19 +383,17 @@ mod test {
         );
 
         assert_eq!(
-            Err(AbsolutePathBufNewError::NotAbsolute(NotAbsolute(
-                String::from("foo.txt")
-            ))),
-            AbsolutePathBuf::try_new("foo.txt")
+            AbsolutePathBufNewError::NotAbsolute(NotAbsolute(String::from("foo.txt"))),
+            AbsolutePathBuf::try_new("foo.txt").unwrap_err()
         );
 
         let parent_dirs = "../".repeat(cwd.components().count());
         let past_root_path = cwd.join("foo").join(parent_dirs).join("../../bar.txt");
         assert_eq!(
-            Err(AbsolutePathBufNewError::NormalizationFailed(
-                NormalizationFailed(past_root_path.display().to_string())
+            AbsolutePathBufNewError::NormalizationFailed(NormalizationFailed(
+                past_root_path.display().to_string()
             )),
-            AbsolutePathBuf::try_new(past_root_path.as_path())
+            AbsolutePathBuf::try_new(past_root_path.as_path()).unwrap_err()
         );
 
         Ok(())
@@ -410,11 +418,11 @@ mod test {
             original.join("./baz")?.as_path()
         );
         assert_eq!(
-            Err(AbsoluteJoinError::JoinedAbsolute(JoinedAbsolute(
+            AbsoluteJoinError::JoinedAbsolute(JoinedAbsolute(
                 original.as_ref().display().to_string(),
                 cwd.as_path().display().to_string()
-            ))),
-            original.join(cwd.as_path())
+            )),
+            original.join(cwd.as_path()).unwrap_err()
         );
 
         let back_to_root = "../".repeat(cwd.components().count() + 1);
@@ -425,13 +433,13 @@ mod test {
         let back_past_root = "../".repeat(cwd.components().count() + 2);
 
         assert_eq!(
-            Err(AbsoluteJoinError::NormalizationFailed(NormalizationFailed(
+            AbsoluteJoinError::NormalizationFailed(NormalizationFailed(
                 cwd.join("foo/bar")
                     .join(&back_past_root)
                     .display()
                     .to_string()
-            ))),
-            original.join(&back_past_root)
+            )),
+            original.join(&back_past_root).unwrap_err()
         );
 
         Ok(())
@@ -483,25 +491,13 @@ mod serde_tests {
 #[cfg(all(test, feature = "diesel"))]
 mod test_diesel {
     use crate::diesel::QueryDsl;
+    use crate::diesel_helpers::{create_table, insert_values};
     use crate::AbsolutePath;
     use crate::AbsolutePathBuf;
-    use diesel::sql_query;
-    use diesel::Connection;
     use diesel::RunQueryDsl;
-    use diesel::SqliteConnection;
-
-    mod schema {
-        table! {
-            test_files (id) {
-                id -> Integer,
-                x -> Text,
-                y -> Nullable<Text>,
-            }
-        }
-    }
 
     #[derive(Queryable, Insertable, Clone, Debug, Eq, PartialEq)]
-    #[diesel(table_name = self::schema::test_files)]
+    #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
     struct TestFile {
         id: i32,
         x: AbsolutePathBuf,
@@ -509,38 +505,33 @@ mod test_diesel {
     }
 
     #[derive(Insertable, Clone, Debug, Eq, PartialEq)]
-    #[diesel(table_name = self::schema::test_files)]
+    #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
     struct TestFileLog<'a> {
         id: i32,
         x: AbsolutePath<'a>,
         y: Option<AbsolutePath<'a>>,
     }
 
-    fn create_table() -> anyhow::Result<SqliteConnection> {
-        let mut connection = diesel::sqlite::SqliteConnection::establish(":memory:")?;
-        diesel::sql_query(
-            "CREATE TABLE test_files (id PRIMARY KEY NOT NULL, x TEXT NOT NULL, y TEXT NULL)",
-        )
-        .execute(&mut connection)?;
-        Ok(connection)
-    }
-
     #[test]
     fn path_to_sql() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let abs_foo_bar = cwd.join("foo/bar.txt");
+        let abs_bar_baz = cwd.join("bar/baz.txt");
+
         let mut connection = create_table()?;
 
-        use schema::test_files::dsl::*;
+        use crate::diesel_helpers::schema::test_files::dsl::*;
 
         let expected = vec![
             TestFile {
                 id: 1,
-                x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
+                x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
                 y: None,
             },
             TestFile {
                 id: 2,
-                x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
-                y: Some(AbsolutePathBuf::try_new("/bar/baz.txt")?),
+                x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
+                y: Some(AbsolutePathBuf::try_new(&abs_bar_baz)?),
             },
         ];
 
@@ -548,13 +539,13 @@ mod test_diesel {
             .values(vec![
                 &TestFileLog {
                     id: 1,
-                    x: AbsolutePath::try_new("/foo/bar.txt")?,
+                    x: AbsolutePath::try_new(&abs_foo_bar)?,
                     y: None,
                 },
                 &TestFileLog {
                     id: 2,
-                    x: AbsolutePath::try_new("/foo/bar.txt")?,
-                    y: Some(AbsolutePath::try_new("/bar/baz.txt")?),
+                    x: AbsolutePath::try_new(&abs_foo_bar)?,
+                    y: Some(AbsolutePath::try_new(&abs_bar_baz)?),
                 },
             ])
             .execute(&mut connection)?;
@@ -567,20 +558,24 @@ mod test_diesel {
 
     #[test]
     fn path_buf_to_sql() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let abs_foo_bar = cwd.join("foo/bar.txt");
+        let abs_bar_baz = cwd.join("bar/baz.txt");
+
         let mut connection = create_table()?;
 
-        use schema::test_files::dsl::*;
+        use crate::diesel_helpers::schema::test_files::dsl::*;
 
         let expected = vec![
             TestFile {
                 id: 1,
-                x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
+                x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
                 y: None,
             },
             TestFile {
                 id: 2,
-                x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
-                y: Some(AbsolutePathBuf::try_new("/bar/baz.txt")?),
+                x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
+                y: Some(AbsolutePathBuf::try_new(&abs_bar_baz)?),
             },
         ];
 
@@ -588,13 +583,13 @@ mod test_diesel {
             .values(vec![
                 &TestFile {
                     id: 1,
-                    x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
+                    x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
                     y: None,
                 },
                 &TestFile {
                     id: 2,
-                    x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
-                    y: Some(AbsolutePathBuf::try_new("/bar/baz.txt")?),
+                    x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
+                    y: Some(AbsolutePathBuf::try_new(&abs_bar_baz)?),
                 },
             ])
             .execute(&mut connection)?;
@@ -607,32 +602,36 @@ mod test_diesel {
 
     #[test]
     fn path_buf_from_sql() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let abs_foo_bar = cwd.join("foo/bar.txt");
+        let abs_bar_baz = cwd.join("bar/baz.txt");
+        let abs_foo_bar_str = abs_foo_bar.display().to_string();
+        let abs_bar_baz_str = abs_bar_baz.display().to_string();
+
         let mut connection = create_table()?;
 
-        sql_query(
-            concat!(
-                "INSERT INTO test_files (id, x, y) VALUES ",
-                "(1, \"/foo/bar.txt\", NULL), ",
-                "(2, \"foo/bar.txt\", NULL), ",
-                "(3, \"/foo/bar.txt\", \"/bar/baz.txt\"), ",
-                "(4, \"/foo/bar.txt\", \"bar/baz.txt\")",
-            )
-            .to_string(),
-        )
-        .execute(&mut connection)?;
+        insert_values(
+            &mut connection,
+            &[
+                (1, &abs_foo_bar_str, None),
+                (2, "foo/bar.txt", None),
+                (3, &abs_foo_bar_str, Some(&abs_bar_baz_str)),
+                (4, &abs_foo_bar_str, Some("bar/baz.txt")),
+            ],
+        )?;
 
-        use schema::test_files::dsl::*;
+        use crate::diesel_helpers::schema::test_files::dsl::*;
 
         let expected = [
             TestFile {
                 id: 1,
-                x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
+                x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
                 y: None,
             },
             TestFile {
                 id: 3,
-                x: AbsolutePathBuf::try_new("/foo/bar.txt")?,
-                y: Some(AbsolutePathBuf::try_new("/bar/baz.txt")?),
+                x: AbsolutePathBuf::try_new(&abs_foo_bar)?,
+                y: Some(AbsolutePathBuf::try_new(&abs_bar_baz)?),
             },
         ];
 

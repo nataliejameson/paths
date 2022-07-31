@@ -91,6 +91,20 @@ impl<'a> serde::Serialize for RelativePath<'a> {
     }
 }
 
+#[cfg(feature = "diesel")]
+impl<'a, DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for RelativePath<'a>
+where
+    DB: diesel::backend::Backend,
+    str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
+{
+    fn to_sql<'b>(
+        &'b self,
+        out: &mut diesel::serialize::Output<'b, '_, DB>,
+    ) -> diesel::serialize::Result {
+        self.0.to_str().expect("paths should be utf8").to_sql(out)
+    }
+}
+
 /// The "owned" analog for [`RelativePath`]. This is not normalized until joined to an absolute path.
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
 #[cfg_attr(
@@ -137,7 +151,7 @@ impl RelativePathBuf {
 
     #[allow(unused)]
     pub(crate) fn new_unchecked<P: Into<PathBuf> + ?Sized>(path: P) -> Self {
-        Self::try_new(path).expect("an absolute path")
+        Self::try_new(path).expect("a relative path")
     }
 
     /// Get a reference to the internal Path object.
@@ -173,6 +187,18 @@ impl RelativePathBuf {
         abs: &AbsolutePath,
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
         abs.join_relative(&self.as_relative_path())
+    }
+}
+
+impl<'a> From<RelativePath<'a>> for RelativePathBuf {
+    fn from(rp: RelativePath<'a>) -> Self {
+        RelativePathBuf::new_unchecked(rp.0)
+    }
+}
+
+impl<'a> From<&RelativePath<'a>> for RelativePathBuf {
+    fn from(rp: &RelativePath<'a>) -> Self {
+        RelativePathBuf::new_unchecked(rp.0)
     }
 }
 
@@ -217,20 +243,6 @@ impl<'de> serde::Deserialize<'de> for RelativePathBuf {
         use serde::de::Error;
         let path = PathBuf::deserialize(deserializer)?;
         RelativePathBuf::try_new(path).map_err(|e| D::Error::custom(format!("{}", e)))
-    }
-}
-
-#[cfg(feature = "diesel")]
-impl<'a, DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for RelativePath<'a>
-where
-    DB: diesel::backend::Backend,
-    str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
-{
-    fn to_sql<'b>(
-        &'b self,
-        out: &mut diesel::serialize::Output<'b, '_, DB>,
-    ) -> diesel::serialize::Result {
-        self.0.to_str().expect("paths should be utf8").to_sql(out)
     }
 }
 
@@ -283,8 +295,8 @@ mod test {
         );
 
         assert_eq!(
-            Err(NotRelative(cwd.join("foo.txt").display().to_string())),
-            RelativePath::try_new(cwd.join("foo.txt").as_path())
+            NotRelative(cwd.join("foo.txt").display().to_string()),
+            RelativePath::try_new(cwd.join("foo.txt").as_path()).unwrap_err()
         );
         Ok(())
     }
@@ -305,11 +317,10 @@ mod test {
         );
 
         assert_eq!(
-            Err(JoinedAbsolute(
-                "foo".to_owned(),
-                cwd.join("foo.txt").display().to_string()
-            )),
-            RelativePath::try_new("foo")?.join(cwd.join("foo.txt"))
+            JoinedAbsolute("foo".to_owned(), cwd.join("foo.txt").display().to_string()),
+            RelativePath::try_new("foo")?
+                .join(cwd.join("foo.txt"))
+                .unwrap_err()
         );
         Ok(())
     }
@@ -356,8 +367,8 @@ mod test {
         );
 
         assert_eq!(
-            Err(NotRelative(cwd.join("foo.txt").display().to_string())),
-            RelativePathBuf::try_new(cwd.join("foo.txt"))
+            NotRelative(cwd.join("foo.txt").display().to_string()),
+            RelativePathBuf::try_new(cwd.join("foo.txt")).unwrap_err()
         );
 
         Ok(())
@@ -430,25 +441,13 @@ mod serde_tests {
 #[cfg(all(test, feature = "diesel"))]
 mod test_diesel {
     use crate::diesel::QueryDsl;
+    use crate::diesel_helpers::{create_table, insert_values};
     use crate::RelativePath;
     use crate::RelativePathBuf;
-    use diesel::sql_query;
-    use diesel::Connection;
     use diesel::RunQueryDsl;
-    use diesel::SqliteConnection;
-
-    mod schema {
-        table! {
-            test_files (id) {
-                id -> Integer,
-                x -> Text,
-                y -> Nullable<Text>,
-            }
-        }
-    }
 
     #[derive(Queryable, Insertable, Clone, Debug, Eq, PartialEq)]
-    #[diesel(table_name = self::schema::test_files)]
+    #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
     struct TestFile {
         id: i32,
         x: RelativePathBuf,
@@ -456,27 +455,18 @@ mod test_diesel {
     }
 
     #[derive(Insertable, Clone, Debug, Eq, PartialEq)]
-    #[diesel(table_name = self::schema::test_files)]
+    #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
     struct TestFileLog<'a> {
         id: i32,
         x: RelativePath<'a>,
         y: Option<RelativePath<'a>>,
     }
 
-    fn create_table() -> anyhow::Result<SqliteConnection> {
-        let mut connection = diesel::sqlite::SqliteConnection::establish(":memory:")?;
-        diesel::sql_query(
-            "CREATE TABLE test_files (id PRIMARY KEY NOT NULL, x TEXT NOT NULL, y TEXT NULL)",
-        )
-        .execute(&mut connection)?;
-        Ok(connection)
-    }
-
     #[test]
     fn path_to_sql() -> anyhow::Result<()> {
         let mut connection = create_table()?;
 
-        use schema::test_files::dsl::*;
+        use crate::diesel_helpers::schema::test_files::dsl::*;
 
         let expected = vec![
             TestFile {
@@ -516,7 +506,7 @@ mod test_diesel {
     fn path_buf_to_sql() -> anyhow::Result<()> {
         let mut connection = create_table()?;
 
-        use schema::test_files::dsl::*;
+        use crate::diesel_helpers::schema::test_files::dsl::*;
 
         let expected = vec![
             TestFile {
@@ -554,21 +544,25 @@ mod test_diesel {
 
     #[test]
     fn path_buf_from_sql() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let abs_foo_bar = cwd.join("foo/bar.txt");
+        let abs_bar_baz = cwd.join("bar/baz.txt");
+        let abs_foo_bar_str = abs_foo_bar.display().to_string();
+        let abs_bar_baz_str = abs_bar_baz.display().to_string();
+
         let mut connection = create_table()?;
 
-        sql_query(
-            concat!(
-                "INSERT INTO test_files (id, x, y) VALUES ",
-                "(1, \"foo/bar.txt\", NULL), ",
-                "(2, \"/foo/bar.txt\", NULL), ",
-                "(3, \"foo/bar.txt\", \"bar/baz.txt\"), ",
-                "(4, \"foo/bar.txt\", \"/bar/baz.txt\")",
-            )
-            .to_string(),
-        )
-        .execute(&mut connection)?;
+        insert_values(
+            &mut connection,
+            &[
+                (1, "foo/bar.txt", None),
+                (2, &abs_foo_bar_str, None),
+                (3, "foo/bar.txt", Some("bar/baz.txt")),
+                (4, "foo/bar.txt", Some(&abs_bar_baz_str)),
+            ],
+        )?;
 
-        use schema::test_files::dsl::*;
+        use crate::diesel_helpers::schema::test_files::dsl::*;
 
         let expected = [
             TestFile {

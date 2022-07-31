@@ -22,6 +22,6 @@ tracing = "0.1.36"
 diesel = { version = "2.0.0-rc.1", features = ["sqlite", "r2d2", "chrono"] , optional=true}
 
 [features]
-default = ["serde"]
+default = ["serde", "diesel"]
 serde = ["dep:serde", "dep:serde_json"]
 diesel = ["serde", "dep:diesel"]
