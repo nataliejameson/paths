@@ -74,3 +74,31 @@ impl From<JoinedAbsolute> for AbsoluteJoinError {
         AbsoluteJoinError::JoinedAbsolute(e)
     }
 }
+
+#[derive(Clone, Debug, thiserror::Error, Eq, PartialEq)]
+pub enum CombinedJoinError {
+    #[error(transparent)]
+    NormalizationFailed(NormalizationFailed),
+    #[error(transparent)]
+    JoinedAbsolute(JoinedAbsolute),
+}
+
+impl From<NormalizationFailed> for CombinedJoinError {
+    fn from(e: NormalizationFailed) -> Self {
+        CombinedJoinError::NormalizationFailed(e)
+    }
+}
+impl From<JoinedAbsolute> for CombinedJoinError {
+    fn from(e: JoinedAbsolute) -> Self {
+        CombinedJoinError::JoinedAbsolute(e)
+    }
+}
+
+impl From<AbsoluteJoinError> for CombinedJoinError {
+    fn from(e: AbsoluteJoinError) -> Self {
+        match e {
+            AbsoluteJoinError::NormalizationFailed(e) => Self::NormalizationFailed(e),
+            AbsoluteJoinError::JoinedAbsolute(e) => Self::JoinedAbsolute(e),
+        }
+    }
+}

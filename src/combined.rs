@@ -2,6 +2,7 @@ use crate::AbsolutePath;
 use crate::AbsolutePathBuf;
 use crate::AbsolutePathBufNewError;
 use crate::AbsolutePathNewError;
+use crate::CombinedJoinError;
 use crate::NormalizationFailed;
 use crate::RelativePath;
 use crate::RelativePathBuf;
@@ -42,10 +43,21 @@ impl<'a> CombinedPath<'a> {
         }
     }
 
+    /// Get a reference to the internal Path object.
     pub fn as_path(&self) -> &Path {
         match self {
             CombinedPath::Relative(r) => r.as_path(),
             CombinedPath::Absolute(a) => a.as_path(),
+        }
+    }
+
+    /// Attempt to join to a path.
+    ///
+    /// The provided path must be relative.
+    pub fn join<P: AsRef<Path>>(&self, path: P) -> Result<CombinedPathBuf, CombinedJoinError> {
+        match self {
+            CombinedPath::Relative(r) => Ok(r.join(path)?.into()),
+            CombinedPath::Absolute(a) => Ok(a.join(path)?.into()),
         }
     }
 
@@ -155,10 +167,21 @@ impl CombinedPathBuf {
         }
     }
 
+    /// Get a reference to the internal Path object.
     pub fn as_path(&self) -> &Path {
         match self {
             CombinedPathBuf::Relative(r) => r.as_path(),
             CombinedPathBuf::Absolute(a) => a.as_path(),
+        }
+    }
+
+    /// Attempt to join to a path.
+    ///
+    /// The provided path must be relative.
+    pub fn join<P: AsRef<Path>>(&self, path: P) -> Result<CombinedPathBuf, CombinedJoinError> {
+        match self {
+            CombinedPathBuf::Relative(r) => Ok(r.join(&path)?.into()),
+            CombinedPathBuf::Absolute(a) => Ok(a.join(&path)?.into()),
         }
     }
 
@@ -195,6 +218,30 @@ impl<'a> From<CombinedPath<'a>> for CombinedPathBuf {
             CombinedPath::Relative(r) => CombinedPathBuf::Relative(r.into()),
             CombinedPath::Absolute(a) => CombinedPathBuf::Absolute(a.into()),
         }
+    }
+}
+
+impl<'a> From<RelativePath<'a>> for CombinedPathBuf {
+    fn from(p: RelativePath<'a>) -> Self {
+        CombinedPathBuf::Relative(p.into())
+    }
+}
+
+impl<'a> From<AbsolutePath<'a>> for CombinedPathBuf {
+    fn from(p: AbsolutePath<'a>) -> Self {
+        CombinedPathBuf::Absolute(p.into())
+    }
+}
+
+impl From<RelativePathBuf> for CombinedPathBuf {
+    fn from(p: RelativePathBuf) -> Self {
+        CombinedPathBuf::Relative(p)
+    }
+}
+
+impl From<AbsolutePathBuf> for CombinedPathBuf {
+    fn from(p: AbsolutePathBuf) -> Self {
+        CombinedPathBuf::Absolute(p)
     }
 }
 
