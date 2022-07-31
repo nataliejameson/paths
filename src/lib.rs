@@ -10,6 +10,10 @@ pub use errors::*;
 pub use relative::RelativePath;
 pub use relative::RelativePathBuf;
 
+#[cfg(all(test, feature = "diesel"))]
+#[macro_use]
+extern crate diesel;
+
 // Absolute + Relative
 // Serialize / Deserialize
 // Buf / NonBuf versions

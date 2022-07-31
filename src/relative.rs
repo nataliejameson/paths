@@ -10,6 +10,11 @@ use std::path::PathBuf;
 
 /// A relative path. This is not normalized until joined to an absolute path.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe)]
+#[cfg_attr(
+    feature = "diesel",
+    derive(diesel::expression::AsExpression, diesel::FromSqlRow)
+)]
+#[cfg_attr(feature="diesel", diesel(sql_type = diesel::sql_types::Text))]
 pub struct RelativePath<'a>(&'a Path);
 
 impl<'a> RelativePath<'a> {
@@ -87,6 +92,11 @@ impl<'a> serde::Serialize for RelativePath<'a> {
 
 /// The "owned" analog for [`RelativePath`]. This is not normalized until joined to an absolute path.
 #[derive(Debug, Eq, PartialEq, Hash, Clone)]
+#[cfg_attr(
+    feature = "diesel",
+    derive(diesel::expression::AsExpression, diesel::FromSqlRow)
+)]
+#[cfg_attr(feature="diesel", diesel(sql_type = diesel::sql_types::Text))]
 pub struct RelativePathBuf(PathBuf);
 
 impl RelativePathBuf {
@@ -198,6 +208,45 @@ impl<'de> serde::Deserialize<'de> for RelativePathBuf {
         use serde::de::Error;
         let path = PathBuf::deserialize(deserializer)?;
         RelativePathBuf::try_new(path).map_err(|e| D::Error::custom(format!("{}", e)))
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl<'a, DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for RelativePath<'a>
+where
+    DB: diesel::backend::Backend,
+    str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
+{
+    fn to_sql<'b>(
+        &'b self,
+        out: &mut diesel::serialize::Output<'b, '_, DB>,
+    ) -> diesel::serialize::Result {
+        self.0.to_str().expect("paths should be utf8").to_sql(out)
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl<DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for RelativePathBuf
+where
+    DB: diesel::backend::Backend,
+    str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
+{
+    fn to_sql<'b>(
+        &'b self,
+        out: &mut diesel::serialize::Output<'b, '_, DB>,
+    ) -> diesel::serialize::Result {
+        self.0.to_str().expect("paths should be utf8").to_sql(out)
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl<DB> diesel::deserialize::FromSql<diesel::sql_types::Text, DB> for RelativePathBuf
+where
+    DB: diesel::backend::Backend,
+    String: diesel::deserialize::FromSql<diesel::sql_types::Text, DB>,
+{
+    fn from_sql(bytes: diesel::backend::RawValue<DB>) -> diesel::deserialize::Result<Self> {
+        String::from_sql(bytes).and_then(|s| Ok(RelativePathBuf::try_new(s)?))
     }
 }
 
@@ -365,6 +414,177 @@ mod serde_tests {
             serde_json::from_str::<RelativePathBuf>(serialized_good)?
         );
         assert!(serde_json::from_str::<RelativePathBuf>(&serialized_absolute).is_err());
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "diesel"))]
+mod test_diesel {
+    use crate::diesel::QueryDsl;
+    use crate::RelativePath;
+    use crate::RelativePathBuf;
+    use diesel::sql_query;
+    use diesel::Connection;
+    use diesel::RunQueryDsl;
+    use diesel::SqliteConnection;
+
+    mod schema {
+        table! {
+            test_files (id) {
+                id -> Integer,
+                x -> Text,
+                y -> Nullable<Text>,
+            }
+        }
+    }
+
+    #[derive(Queryable, Insertable, Clone, Debug, Eq, PartialEq)]
+    #[diesel(table_name = self::schema::test_files)]
+    struct TestFile {
+        id: i32,
+        x: RelativePathBuf,
+        y: Option<RelativePathBuf>,
+    }
+
+    #[derive(Insertable, Clone, Debug, Eq, PartialEq)]
+    #[diesel(table_name = self::schema::test_files)]
+    struct TestFileLog<'a> {
+        id: i32,
+        x: RelativePath<'a>,
+        y: Option<RelativePath<'a>>,
+    }
+
+    fn create_table() -> anyhow::Result<SqliteConnection> {
+        let mut connection = diesel::sqlite::SqliteConnection::establish(":memory:")?;
+        diesel::sql_query(
+            "CREATE TABLE test_files (id PRIMARY KEY NOT NULL, x TEXT NOT NULL, y TEXT NULL)",
+        )
+        .execute(&mut connection)?;
+        Ok(connection)
+    }
+
+    #[test]
+    fn path_to_sql() -> anyhow::Result<()> {
+        let mut connection = create_table()?;
+
+        use schema::test_files::dsl::*;
+
+        let expected = vec![
+            TestFile {
+                id: 1,
+                x: RelativePathBuf::try_new("foo/bar.txt")?,
+                y: None,
+            },
+            TestFile {
+                id: 2,
+                x: RelativePathBuf::try_new("foo/bar.txt")?,
+                y: Some(RelativePathBuf::try_new("bar/baz.txt")?),
+            },
+        ];
+
+        diesel::insert_into(test_files)
+            .values(vec![
+                &TestFileLog {
+                    id: 1,
+                    x: RelativePath::try_new("foo/bar.txt")?,
+                    y: None,
+                },
+                &TestFileLog {
+                    id: 2,
+                    x: RelativePath::try_new("foo/bar.txt")?,
+                    y: Some(RelativePath::try_new("bar/baz.txt")?),
+                },
+            ])
+            .execute(&mut connection)?;
+
+        let rows = test_files.load::<TestFile>(&mut connection)?;
+        assert_eq!(expected, rows);
+
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_to_sql() -> anyhow::Result<()> {
+        let mut connection = create_table()?;
+
+        use schema::test_files::dsl::*;
+
+        let expected = vec![
+            TestFile {
+                id: 1,
+                x: RelativePathBuf::try_new("foo/bar.txt")?,
+                y: None,
+            },
+            TestFile {
+                id: 2,
+                x: RelativePathBuf::try_new("foo/bar.txt")?,
+                y: Some(RelativePathBuf::try_new("bar/baz.txt")?),
+            },
+        ];
+
+        diesel::insert_into(test_files)
+            .values(vec![
+                &TestFile {
+                    id: 1,
+                    x: RelativePathBuf::try_new("foo/bar.txt")?,
+                    y: None,
+                },
+                &TestFile {
+                    id: 2,
+                    x: RelativePathBuf::try_new("foo/bar.txt")?,
+                    y: Some(RelativePathBuf::try_new("bar/baz.txt")?),
+                },
+            ])
+            .execute(&mut connection)?;
+
+        let rows = test_files.load::<TestFile>(&mut connection)?;
+        assert_eq!(expected, rows);
+
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_from_sql() -> anyhow::Result<()> {
+        let mut connection = create_table()?;
+
+        sql_query(
+            concat!(
+                "INSERT INTO test_files (id, x, y) VALUES ",
+                "(1, \"foo/bar.txt\", NULL), ",
+                "(2, \"/foo/bar.txt\", NULL), ",
+                "(3, \"foo/bar.txt\", \"bar/baz.txt\"), ",
+                "(4, \"foo/bar.txt\", \"/bar/baz.txt\")",
+            )
+            .to_string(),
+        )
+        .execute(&mut connection)?;
+
+        use schema::test_files::dsl::*;
+
+        let expected = [
+            TestFile {
+                id: 1,
+                x: RelativePathBuf::try_new("foo/bar.txt")?,
+                y: None,
+            },
+            TestFile {
+                id: 3,
+                x: RelativePathBuf::try_new("foo/bar.txt")?,
+                y: Some(RelativePathBuf::try_new("bar/baz.txt")?),
+            },
+        ];
+
+        assert_eq!(expected[0], test_files.find(1).first(&mut connection)?);
+        assert!(test_files
+            .find(2)
+            .first::<TestFile>(&mut connection)
+            .is_err());
+        assert_eq!(expected[1], test_files.find(3).first(&mut connection)?);
+        assert!(test_files
+            .find(4)
+            .first::<TestFile>(&mut connection)
+            .is_err());
+
         Ok(())
     }
 }
