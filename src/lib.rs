@@ -27,7 +27,10 @@ extern crate diesel;
 
 #[cfg(all(test, feature = "diesel"))]
 pub(crate) mod diesel_helpers {
-    use diesel::{sql_query, Connection, RunQueryDsl, SqliteConnection};
+    use diesel::sql_query;
+    use diesel::Connection;
+    use diesel::RunQueryDsl;
+    use diesel::SqliteConnection;
 
     pub(crate) mod schema {
         table! {

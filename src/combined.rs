@@ -1,9 +1,14 @@
-use crate::{
-    AbsolutePath, AbsolutePathBuf, AbsolutePathBufNewError, AbsolutePathNewError,
-    NormalizationFailed, RelativePath, RelativePathBuf, WasNotNormalized,
-};
+use crate::AbsolutePath;
+use crate::AbsolutePathBuf;
+use crate::AbsolutePathBufNewError;
+use crate::AbsolutePathNewError;
+use crate::NormalizationFailed;
+use crate::RelativePath;
+use crate::RelativePathBuf;
+use crate::WasNotNormalized;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 /// A path that is either Absolute or Relative, but strongly typed either way.
@@ -274,9 +279,13 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::combined::{CombinedPath, CombinedPathBuf};
-    use crate::{AbsolutePathBuf, NormalizationFailed, WasNotNormalized};
-    use std::path::{Path, PathBuf};
+    use crate::combined::CombinedPath;
+    use crate::combined::CombinedPathBuf;
+    use crate::AbsolutePathBuf;
+    use crate::NormalizationFailed;
+    use crate::WasNotNormalized;
+    use std::path::Path;
+    use std::path::PathBuf;
 
     #[test]
     fn path_try_new() -> anyhow::Result<()> {
@@ -417,7 +426,8 @@ mod test {
 
 #[cfg(test)]
 mod test_serde {
-    use crate::combined::{CombinedPath, CombinedPathBuf};
+    use crate::combined::CombinedPath;
+    use crate::combined::CombinedPathBuf;
 
     #[test]
     fn path_serializes() -> anyhow::Result<()> {
@@ -470,7 +480,8 @@ mod test_serde {
 #[cfg(test)]
 mod test_diesel {
     use crate::diesel::QueryDsl;
-    use crate::diesel_helpers::{create_table, insert_values};
+    use crate::diesel_helpers::create_table;
+    use crate::diesel_helpers::insert_values;
     use crate::CombinedPath;
     use crate::CombinedPathBuf;
     use diesel::RunQueryDsl;

@@ -491,7 +491,8 @@ mod serde_tests {
 #[cfg(all(test, feature = "diesel"))]
 mod test_diesel {
     use crate::diesel::QueryDsl;
-    use crate::diesel_helpers::{create_table, insert_values};
+    use crate::diesel_helpers::create_table;
+    use crate::diesel_helpers::insert_values;
     use crate::AbsolutePath;
     use crate::AbsolutePathBuf;
     use diesel::RunQueryDsl;
