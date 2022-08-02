@@ -3,41 +3,39 @@ use crate::errors::NotRelative;
 use crate::AbsolutePath;
 use crate::AbsolutePathBuf;
 use crate::NormalizationFailed;
-use gazebo::dupe::Dupe;
+use ref_cast::RefCast;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 /// A relative path. This is not normalized until joined to an absolute path.
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Dupe, Ord, PartialOrd)]
-#[cfg_attr(
-    feature = "diesel",
-    derive(diesel::expression::AsExpression, diesel::FromSqlRow)
-)]
-#[cfg_attr(feature="diesel", diesel(sql_type = diesel::sql_types::Text))]
-pub struct RelativePath<'a>(&'a Path);
+#[derive(Debug, Eq, PartialEq, Hash, Ord, PartialOrd, RefCast)]
+#[cfg_attr(feature = "diesel", derive(diesel::expression::AsExpression))]
+#[cfg_attr(feature="diesel", diesel(sql_type = diesel::sql_types::Text, not_sized))]
+#[repr(transparent)]
+pub struct RelativePath(Path);
 
-impl<'a> RelativePath<'a> {
+impl RelativePath {
     /// Attempt to create an instance of [`RelativePath`].
     ///
     /// This will fail if the provided path is absolute.
-    pub fn try_new<P: AsRef<Path> + ?Sized + 'a>(path: &'a P) -> Result<Self, NotRelative> {
+    pub fn try_new<P: AsRef<Path> + ?Sized>(path: &P) -> Result<&Self, NotRelative> {
         let p = path.as_ref();
         if p.is_absolute() {
             Err(NotRelative(p.display().to_string()))
         } else {
-            Ok(Self(path.as_ref()))
+            Ok(Self::ref_cast(path.as_ref()))
         }
     }
 
-    pub(crate) fn new_unchecked<P: AsRef<Path> + ?Sized + 'a>(path: &'a P) -> Self {
+    pub(crate) fn new_unchecked<P: AsRef<Path> + ?Sized>(path: &P) -> &Self {
         Self::try_new(path).expect("an absolute path")
     }
 
     /// Get a reference to the internal Path object.
     pub fn as_path(&self) -> &Path {
-        self.0
+        &self.0
     }
 
     /// Attempt to join to a path.
@@ -67,13 +65,13 @@ impl<'a> RelativePath<'a> {
     }
 }
 
-impl<'a> AsRef<Path> for RelativePath<'a> {
+impl AsRef<Path> for RelativePath {
     fn as_ref(&self) -> &Path {
         self.as_path()
     }
 }
 
-impl<'a> Deref for RelativePath<'a> {
+impl Deref for RelativePath {
     type Target = Path;
 
     fn deref(&self) -> &Self::Target {
@@ -82,7 +80,7 @@ impl<'a> Deref for RelativePath<'a> {
 }
 
 #[cfg(feature = "serde")]
-impl<'a> serde::Serialize for RelativePath<'a> {
+impl serde::Serialize for RelativePath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -92,7 +90,7 @@ impl<'a> serde::Serialize for RelativePath<'a> {
 }
 
 #[cfg(feature = "diesel")]
-impl<'a, DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for RelativePath<'a>
+impl<DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for RelativePath
 where
     DB: diesel::backend::Backend,
     str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
@@ -160,7 +158,7 @@ impl RelativePathBuf {
     }
 
     /// Get a new [`RelativePath`] referencing the internal Path object.
-    pub fn as_relative_path(&self) -> RelativePath {
+    pub fn as_relative_path(&self) -> &RelativePath {
         RelativePath::new_unchecked(self.0.as_path())
     }
 
@@ -186,19 +184,13 @@ impl RelativePathBuf {
         &self,
         abs: &AbsolutePath,
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
-        abs.join_relative(&self.as_relative_path())
+        abs.join_relative(self.as_relative_path())
     }
 }
 
-impl<'a> From<RelativePath<'a>> for RelativePathBuf {
-    fn from(rp: RelativePath<'a>) -> Self {
-        RelativePathBuf::new_unchecked(rp.0)
-    }
-}
-
-impl<'a> From<&RelativePath<'a>> for RelativePathBuf {
-    fn from(rp: &RelativePath<'a>) -> Self {
-        RelativePathBuf::new_unchecked(rp.0)
+impl From<&RelativePath> for RelativePathBuf {
+    fn from(rp: &RelativePath) -> Self {
+        RelativePathBuf::new_unchecked(&rp.0)
     }
 }
 
@@ -210,6 +202,12 @@ impl FromStr for RelativePathBuf {
     }
 }
 
+impl AsRef<RelativePath> for RelativePathBuf {
+    fn as_ref(&self) -> &RelativePath {
+        RelativePath::new_unchecked(&self.0)
+    }
+}
+
 impl AsRef<Path> for RelativePathBuf {
     fn as_ref(&self) -> &Path {
         self.as_path()
@@ -217,10 +215,10 @@ impl AsRef<Path> for RelativePathBuf {
 }
 
 impl Deref for RelativePathBuf {
-    type Target = Path;
+    type Target = RelativePath;
 
     fn deref(&self) -> &Self::Target {
-        self.as_path()
+        RelativePath::new_unchecked(&self.0)
     }
 }
 
@@ -335,19 +333,19 @@ mod test {
         assert_eq!(
             cwd.join("foo/bar/baz").as_path(),
             RelativePath::try_new("baz")?
-                .try_into_absolute(&original)?
+                .try_into_absolute(original)?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo").as_path(),
             RelativePath::try_new("../")?
-                .try_into_absolute(&original)?
+                .try_into_absolute(original)?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo/bar/baz/quz").as_path(),
             RelativePath::try_new("baz/./quz")?
-                .try_into_absolute(&original)?
+                .try_into_absolute(original)?
                 .as_path()
         );
 
@@ -383,19 +381,19 @@ mod test {
         assert_eq!(
             cwd.join("foo/bar/baz").as_path(),
             RelativePathBuf::try_new("baz")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo").as_path(),
             RelativePathBuf::try_new("../")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo/bar/baz/quz").as_path(),
             RelativePathBuf::try_new("baz/./quz")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
 
@@ -457,10 +455,10 @@ mod test_diesel {
 
     #[derive(Insertable, Clone, Debug, Eq, PartialEq)]
     #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
-    struct TestFileLog<'a> {
+    struct TestFileLog {
         id: i32,
-        x: RelativePath<'a>,
-        y: Option<RelativePath<'a>>,
+        x: &'static RelativePath,
+        y: Option<&'static RelativePath>,
     }
 
     #[test]

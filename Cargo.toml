@@ -20,6 +20,7 @@ serde_json = {version="1.0.82", optional=true}
 thiserror = "1.0.31"
 tracing = "0.1.36"
 diesel = { version = "2.0.0-rc.1", features = ["sqlite", "r2d2", "chrono"] , optional=true}
+ref-cast = "1.0.8"
 
 [features]
 default = ["serde", "diesel"]

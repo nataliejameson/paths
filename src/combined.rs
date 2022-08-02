@@ -7,37 +7,33 @@ use crate::NormalizationFailed;
 use crate::RelativePath;
 use crate::RelativePathBuf;
 use crate::WasNotNormalized;
+use ref_cast::RefCast;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 /// A path that is either Absolute or Relative, but strongly typed either way.
-#[derive(Debug, Eq, PartialEq, Hash, Clone, Ord, PartialOrd)]
-#[cfg_attr(
-    feature = "diesel",
-    derive(diesel::expression::AsExpression, diesel::FromSqlRow)
-)]
-#[cfg_attr(feature="diesel", diesel(sql_type = diesel::sql_types::Text))]
-pub enum CombinedPath<'a> {
-    Relative(RelativePath<'a>),
-    Absolute(AbsolutePath<'a>),
-}
+#[derive(Debug, Eq, PartialEq, Hash, Ord, PartialOrd, RefCast)]
+#[cfg_attr(feature = "diesel", derive(diesel::expression::AsExpression))]
+#[cfg_attr(feature="diesel", diesel(sql_type = diesel::sql_types::Text, not_sized))]
+#[repr(transparent)]
+pub struct CombinedPath(Path);
 
-impl<'a> CombinedPath<'a> {
-    pub fn try_new<P: AsRef<Path> + ?Sized + 'a>(path: &'a P) -> Result<Self, WasNotNormalized> {
+impl CombinedPath {
+    pub fn try_new<P: AsRef<Path> + ?Sized>(path: &P) -> Result<&Self, WasNotNormalized> {
         let p = path.as_ref();
         if p.is_absolute() {
-            Ok(CombinedPath::Absolute(
-                AbsolutePath::try_new(path).map_err(|e| match e {
+            Ok(Self::ref_cast(AbsolutePath::try_new(path).map_err(
+                |e| match e {
                     AbsolutePathNewError::WasNotNormalized(e) => e,
                     AbsolutePathNewError::NotAbsolute(_) => {
                         std::unreachable!()
                     }
-                })?,
-            ))
+                },
+            )?))
         } else {
-            Ok(CombinedPath::Relative(
+            Ok(Self::ref_cast(
                 RelativePath::try_new(path).expect("already verified was relative"),
             ))
         }
@@ -45,19 +41,17 @@ impl<'a> CombinedPath<'a> {
 
     /// Get a reference to the internal Path object.
     pub fn as_path(&self) -> &Path {
-        match self {
-            CombinedPath::Relative(r) => r.as_path(),
-            CombinedPath::Absolute(a) => a.as_path(),
-        }
+        &self.0
     }
 
     /// Attempt to join to a path.
     ///
     /// The provided path must be relative.
     pub fn join<P: AsRef<Path>>(&self, path: P) -> Result<CombinedPathBuf, CombinedJoinError> {
-        match self {
-            CombinedPath::Relative(r) => Ok(r.join(path)?.into()),
-            CombinedPath::Absolute(a) => Ok(a.join(path)?.into()),
+        if self.0.is_absolute() {
+            Ok(AbsolutePath::new_unchecked(&self.0).join(path)?.into())
+        } else {
+            Ok(RelativePath::new_unchecked(&self.0).join(path)?.into())
         }
     }
 
@@ -67,9 +61,10 @@ impl<'a> CombinedPath<'a> {
         &self,
         resolve_against: &AbsolutePath,
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
-        match self {
-            CombinedPath::Relative(r) => r.try_into_absolute(resolve_against),
-            CombinedPath::Absolute(a) => Ok(a.into()),
+        if self.0.is_absolute() {
+            Ok(AbsolutePath::new_unchecked(&self.0).into())
+        } else {
+            Ok(RelativePath::new_unchecked(&self.0).try_into_absolute(resolve_against)?)
         }
     }
 
@@ -77,31 +72,25 @@ impl<'a> CombinedPath<'a> {
     pub fn try_into_absolute_in_cwd(&self) -> Result<AbsolutePathBuf, NormalizationFailed> {
         let cwd = std::env::current_dir().expect("there to be a cwd");
         let abs_cwd = AbsolutePath::new_unchecked(&cwd);
-        self.try_into_absolute(&abs_cwd)
+        self.try_into_absolute(abs_cwd)
     }
 
     pub fn is_relative(&self) -> bool {
-        match self {
-            CombinedPath::Relative(_) => true,
-            CombinedPath::Absolute(_) => false,
-        }
+        self.0.is_relative()
     }
 
     pub fn is_absolute(&self) -> bool {
-        match self {
-            CombinedPath::Relative(_) => false,
-            CombinedPath::Absolute(_) => true,
-        }
+        self.0.is_absolute()
     }
 }
 
-impl<'a> AsRef<Path> for CombinedPath<'a> {
+impl AsRef<Path> for CombinedPath {
     fn as_ref(&self) -> &Path {
         self.as_path()
     }
 }
 
-impl<'a> Deref for CombinedPath<'a> {
+impl Deref for CombinedPath {
     type Target = Path;
 
     fn deref(&self) -> &Self::Target {
@@ -110,20 +99,17 @@ impl<'a> Deref for CombinedPath<'a> {
 }
 
 #[cfg(feature = "serde")]
-impl<'a> serde::Serialize for CombinedPath<'a> {
+impl serde::Serialize for CombinedPath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        match self {
-            CombinedPath::Relative(r) => r.serialize(serializer),
-            CombinedPath::Absolute(a) => a.serialize(serializer),
-        }
+        self.0.serialize(serializer)
     }
 }
 
 #[cfg(feature = "diesel")]
-impl<'a, DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for CombinedPath<'a>
+impl<DB> diesel::serialize::ToSql<diesel::sql_types::Text, DB> for CombinedPath
 where
     DB: diesel::backend::Backend,
     str: diesel::serialize::ToSql<diesel::sql_types::Text, DB>,
@@ -132,14 +118,7 @@ where
         &'b self,
         out: &mut diesel::serialize::Output<'b, '_, DB>,
     ) -> diesel::serialize::Result {
-        match self {
-            CombinedPath::Relative(r) => {
-                diesel::serialize::ToSql::<diesel::sql_types::Text, DB>::to_sql(r, out)
-            }
-            CombinedPath::Absolute(a) => {
-                diesel::serialize::ToSql::<diesel::sql_types::Text, DB>::to_sql(a, out)
-            }
-        }
+        self.0.to_str().expect("paths should be utf8").to_sql(out)
     }
 }
 
@@ -208,7 +187,7 @@ impl CombinedPathBuf {
     pub fn try_into_absolute_in_cwd(&self) -> Result<AbsolutePathBuf, NormalizationFailed> {
         let cwd = std::env::current_dir().expect("there to be a cwd");
         let abs_cwd = AbsolutePath::new_unchecked(&cwd);
-        self.try_into_absolute(&abs_cwd)
+        self.try_into_absolute(abs_cwd)
     }
 
     pub fn is_relative(&self) -> bool {
@@ -226,23 +205,24 @@ impl CombinedPathBuf {
     }
 }
 
-impl<'a> From<CombinedPath<'a>> for CombinedPathBuf {
-    fn from(c: CombinedPath<'a>) -> Self {
-        match c {
-            CombinedPath::Relative(r) => CombinedPathBuf::Relative(r.into()),
-            CombinedPath::Absolute(a) => CombinedPathBuf::Absolute(a.into()),
+impl From<&CombinedPath> for CombinedPathBuf {
+    fn from(c: &CombinedPath) -> Self {
+        if c.0.is_absolute() {
+            CombinedPathBuf::Absolute(AbsolutePathBuf::new_unchecked(&c.0))
+        } else {
+            CombinedPathBuf::Relative(RelativePathBuf::new_unchecked(&c.0))
         }
     }
 }
 
-impl<'a> From<RelativePath<'a>> for CombinedPathBuf {
-    fn from(p: RelativePath<'a>) -> Self {
+impl From<&RelativePath> for CombinedPathBuf {
+    fn from(p: &RelativePath) -> Self {
         CombinedPathBuf::Relative(p.into())
     }
 }
 
-impl<'a> From<AbsolutePath<'a>> for CombinedPathBuf {
-    fn from(p: AbsolutePath<'a>) -> Self {
+impl From<&AbsolutePath> for CombinedPathBuf {
+    fn from(p: &AbsolutePath) -> Self {
         CombinedPathBuf::Absolute(p.into())
     }
 }
@@ -395,25 +375,25 @@ mod test {
         assert_eq!(
             cwd.join("foo/bar/baz").as_path(),
             CombinedPath::try_new("baz")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo").as_path(),
             CombinedPath::try_new("../")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo/bar/baz/quz").as_path(),
             CombinedPath::try_new("baz/./quz")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.as_path(),
             CombinedPath::try_new(cwd.as_path())?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
 
@@ -421,7 +401,7 @@ mod test {
         assert_eq!(
             NormalizationFailed(original.as_path().join(&traversal).display().to_string()),
             CombinedPath::try_new(&traversal)?
-                .try_into_absolute(&original.as_absolute_path())
+                .try_into_absolute(original.as_absolute_path())
                 .unwrap_err()
         );
 
@@ -459,25 +439,25 @@ mod test {
         assert_eq!(
             cwd.join("foo/bar/baz").as_path(),
             CombinedPathBuf::try_new("baz")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo").as_path(),
             CombinedPathBuf::try_new("../")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.join("foo/bar/baz/quz").as_path(),
             CombinedPathBuf::try_new("baz/./quz")?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
         assert_eq!(
             cwd.as_path(),
             CombinedPathBuf::try_new(cwd.as_path())?
-                .try_into_absolute(&original.as_absolute_path())?
+                .try_into_absolute(original.as_absolute_path())?
                 .as_path()
         );
 
@@ -555,12 +535,12 @@ mod test_diesel {
         y: Option<CombinedPathBuf>,
     }
 
-    #[derive(Insertable, Clone, Debug, Eq, PartialEq)]
+    #[derive(Insertable, Debug, Eq, PartialEq)]
     #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
     struct TestFileLog<'a> {
         id: i32,
-        x: CombinedPath<'a>,
-        y: Option<CombinedPath<'a>>,
+        x: &'a CombinedPath,
+        y: Option<&'a CombinedPath>,
     }
 
     #[test]
