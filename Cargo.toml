@@ -23,6 +23,6 @@ diesel = { version = "2.0.0-rc.1", features = ["sqlite", "r2d2", "chrono"] , opt
 ref-cast = "1.0.8"
 
 [features]
-default = ["serde", "diesel"]
+default = ["serde"]
 serde = ["dep:serde", "dep:serde_json"]
 diesel = ["serde", "dep:diesel"]
