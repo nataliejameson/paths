@@ -465,7 +465,7 @@ mod test {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod test_serde {
     use crate::combined::CombinedPath;
     use crate::combined::CombinedPathBuf;
@@ -518,7 +518,7 @@ mod test_serde {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "diesel"))]
 mod test_diesel {
     use crate::diesel::QueryDsl;
     use crate::diesel_helpers::create_table;

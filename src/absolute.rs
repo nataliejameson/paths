@@ -73,6 +73,10 @@ impl AbsolutePath {
             _ => unreachable!(),
         })
     }
+
+    pub fn parent(&self) -> Option<&AbsolutePath> {
+        self.0.parent().map(AbsolutePath::new_unchecked)
+    }
 }
 
 impl AsRef<Path> for AbsolutePath {
@@ -185,6 +189,10 @@ impl AbsolutePathBuf {
             AbsolutePathBufNewError::NormalizationFailed(e) => e,
             _ => std::unreachable!(),
         })
+    }
+
+    pub fn parent(&self) -> Option<&AbsolutePath> {
+        self.0.parent().map(AbsolutePath::new_unchecked)
     }
 }
 
@@ -365,6 +373,25 @@ mod test {
     }
 
     #[test]
+    fn path_parent() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let root = Path::new("/");
+        let abs_root_buf = AbsolutePathBuf::try_new("/")?;
+
+        let abs_cwd = AbsolutePath::try_new(&cwd)?;
+        let abs_root = AbsolutePath::try_new(&abs_root_buf)?;
+
+        assert!(cwd.parent().is_some());
+        assert_eq!(
+            AbsolutePath::try_new(cwd.parent().unwrap())?,
+            abs_cwd.parent().unwrap()
+        );
+        assert!(root.parent().is_none());
+        assert!(abs_root.parent().is_none());
+        Ok(())
+    }
+
+    #[test]
     fn path_buf_try_new() -> anyhow::Result<()> {
         let cwd = std::env::current_dir()?;
         assert_eq!(
@@ -440,6 +467,24 @@ mod test {
             original.join(&back_past_root).unwrap_err()
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_parent() -> anyhow::Result<()> {
+        let cwd = std::env::current_dir()?;
+        let root = Path::new("/");
+
+        let abs_cwd = AbsolutePathBuf::try_new(&cwd)?;
+        let abs_root = AbsolutePathBuf::try_new(&root)?;
+
+        assert!(cwd.parent().is_some());
+        assert_eq!(
+            AbsolutePath::try_new(cwd.parent().unwrap())?,
+            abs_cwd.parent().unwrap()
+        );
+        assert!(root.parent().is_none());
+        assert!(abs_root.parent().is_none());
         Ok(())
     }
 }
