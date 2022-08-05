@@ -68,7 +68,7 @@ impl AbsolutePath {
         &self,
         path: &RelativePath,
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
-        AbsolutePathBuf::try_new(self.0.join(path.as_ref())).map_err(|e| match e {
+        AbsolutePathBuf::try_new(self.0.join(path.as_path())).map_err(|e| match e {
             AbsolutePathBufNewError::NormalizationFailed(e) => e,
             _ => unreachable!(),
         })
@@ -86,6 +86,12 @@ impl AbsolutePath {
 impl AsRef<Path> for AbsolutePath {
     fn as_ref(&self) -> &Path {
         self.as_path()
+    }
+}
+
+impl AsRef<AbsolutePath> for AbsolutePath {
+    fn as_ref(&self) -> &AbsolutePath {
+        self
     }
 }
 
@@ -211,7 +217,7 @@ impl AbsolutePathBuf {
     ///
     /// This can only fail if the provided path attempts to traverse beyond the filesystem root.
     pub fn join_relative(&self, path: &RelativePath) -> Result<Self, NormalizationFailed> {
-        Self::try_new(self.0.join(path.as_ref())).map_err(|e| match e {
+        Self::try_new(self.0.join(path.as_path())).map_err(|e| match e {
             AbsolutePathBufNewError::NormalizationFailed(e) => e,
             _ => std::unreachable!(),
         })
@@ -391,7 +397,7 @@ mod test {
         );
         assert_eq!(
             AbsoluteJoinError::JoinedAbsolute(JoinedAbsolute(
-                original.as_ref().display().to_string(),
+                original.as_path().display().to_string(),
                 cwd.as_path().display().to_string()
             )),
             original.join(cwd.as_path()).unwrap_err()

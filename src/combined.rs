@@ -93,6 +93,12 @@ impl AsRef<Path> for CombinedPath {
     }
 }
 
+impl AsRef<CombinedPath> for CombinedPath {
+    fn as_ref(&self) -> &CombinedPath {
+        self
+    }
+}
+
 impl Deref for CombinedPath {
     type Target = Path;
 

@@ -76,6 +76,12 @@ impl AsRef<Path> for RelativePath {
     }
 }
 
+impl AsRef<RelativePath> for RelativePath {
+    fn as_ref(&self) -> &RelativePath {
+        self
+    }
+}
+
 impl Deref for RelativePath {
     type Target = Path;
 
