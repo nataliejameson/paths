@@ -202,6 +202,22 @@ impl From<&AbsolutePath> for AbsolutePathBuf {
     }
 }
 
+impl TryFrom<PathBuf> for AbsolutePathBuf {
+    type Error = AbsolutePathBufNewError;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        AbsolutePathBuf::try_new(value)
+    }
+}
+
+impl FromStr for AbsolutePathBuf {
+    type Err = AbsolutePathBufNewError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        AbsolutePathBuf::try_new(s)
+    }
+}
+
 impl AsRef<Path> for AbsolutePathBuf {
     fn as_ref(&self) -> &Path {
         self.as_path()
@@ -219,14 +235,6 @@ impl Deref for AbsolutePathBuf {
 
     fn deref(&self) -> &Self::Target {
         AbsolutePath::new_unchecked(&self.0)
-    }
-}
-
-impl FromStr for AbsolutePathBuf {
-    type Err = AbsolutePathBufNewError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        AbsolutePathBuf::try_new(s)
     }
 }
 

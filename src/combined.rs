@@ -239,6 +239,14 @@ impl From<AbsolutePathBuf> for CombinedPathBuf {
     }
 }
 
+impl TryFrom<PathBuf> for CombinedPathBuf {
+    type Error = NormalizationFailed;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        CombinedPathBuf::try_new(value)
+    }
+}
+
 impl FromStr for CombinedPathBuf {
     type Err = NormalizationFailed;
 

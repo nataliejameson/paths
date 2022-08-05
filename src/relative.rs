@@ -194,6 +194,14 @@ impl From<&RelativePath> for RelativePathBuf {
     }
 }
 
+impl TryFrom<PathBuf> for RelativePathBuf {
+    type Error = NotRelative;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        RelativePathBuf::try_new(value)
+    }
+}
+
 impl FromStr for RelativePathBuf {
     type Err = NotRelative;
 
