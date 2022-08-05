@@ -81,6 +81,10 @@ impl CombinedPath {
     pub fn is_absolute(&self) -> bool {
         self.0.is_absolute()
     }
+
+    pub fn to_lossy_string(&self) -> String {
+        self.0.to_string_lossy().to_string()
+    }
 }
 
 impl AsRef<Path> for CombinedPath {
@@ -211,6 +215,13 @@ impl CombinedPathBuf {
         match self {
             CombinedPathBuf::Relative(_) => false,
             CombinedPathBuf::Absolute(_) => true,
+        }
+    }
+
+    pub fn to_lossy_string(&self) -> String {
+        match self {
+            CombinedPathBuf::Relative(r) => r.to_lossy_string(),
+            CombinedPathBuf::Absolute(a) => a.to_lossy_string(),
         }
     }
 }

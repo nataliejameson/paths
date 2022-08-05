@@ -77,6 +77,10 @@ impl AbsolutePath {
     pub fn parent(&self) -> Option<&AbsolutePath> {
         self.0.parent().map(AbsolutePath::new_unchecked)
     }
+
+    pub fn to_lossy_string(&self) -> String {
+        self.0.to_string_lossy().to_string()
+    }
 }
 
 impl AsRef<Path> for AbsolutePath {
@@ -215,6 +219,10 @@ impl AbsolutePathBuf {
 
     pub fn parent(&self) -> Option<&AbsolutePath> {
         self.0.parent().map(AbsolutePath::new_unchecked)
+    }
+
+    pub fn to_lossy_string(&self) -> String {
+        self.0.to_string_lossy().to_string()
     }
 }
 

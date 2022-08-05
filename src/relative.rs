@@ -64,6 +64,10 @@ impl RelativePath {
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
         abs.join_relative(self)
     }
+
+    pub fn to_lossy_string(&self) -> String {
+        self.0.to_string_lossy().to_string()
+    }
 }
 
 impl AsRef<Path> for RelativePath {
@@ -193,6 +197,10 @@ impl RelativePathBuf {
         abs: &AbsolutePath,
     ) -> Result<AbsolutePathBuf, NormalizationFailed> {
         abs.join_relative(self.as_relative_path())
+    }
+
+    pub fn to_lossy_string(&self) -> String {
+        self.0.to_string_lossy().to_string()
     }
 }
 
