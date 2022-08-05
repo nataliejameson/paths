@@ -4,23 +4,22 @@ version = "0.1.0"
 edition = "2021"
 description = "Simple way to semantically require relative or absolute paths"
 authors = ["Natalie Jameson <natalie@natalie.wtf>"]
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.58"
 async-trait = "0.1.56"
 derivative = "2.2.0"
+diesel = { version = "2.0.0-rc.1", features = ["sqlite", "r2d2", "chrono"], optional = true }
 dirs = "4.0.0"
 gazebo = "0.8.0"
 itertools = "0.10.3"
 log = "0.4.17"
-serde = {version="1.0.140", features = ["derive"], optional=true}
-serde_json = {version="1.0.82", optional=true}
+ref-cast = "1.0.8"
+serde = { version = "1.0.140", features = ["derive"], optional = true }
+serde_json = { version = "1.0.82", optional = true }
 thiserror = "1.0.31"
 tracing = "0.1.36"
-diesel = { version = "2.0.0-rc.1", features = ["sqlite", "r2d2", "chrono"] , optional=true}
-ref-cast = "1.0.8"
 
 [features]
 default = ["serde", "display"]
