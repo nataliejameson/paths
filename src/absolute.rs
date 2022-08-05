@@ -1,3 +1,10 @@
+use std::ops::Deref;
+use std::path::Path;
+use std::path::PathBuf;
+use std::str::FromStr;
+
+use ref_cast::RefCast;
+
 use crate::AbsoluteJoinError;
 use crate::AbsolutePathBufNewError;
 use crate::AbsolutePathNewError;
@@ -6,11 +13,6 @@ use crate::NormalizationFailed;
 use crate::NotAbsolute;
 use crate::RelativePath;
 use crate::WasNotNormalized;
-use ref_cast::RefCast;
-use std::ops::Deref;
-use std::path::Path;
-use std::path::PathBuf;
-use std::str::FromStr;
 
 /// An absolute path. This must be normalized to begin with.
 #[derive(Debug, Eq, PartialEq, Hash, Ord, PartialOrd, RefCast)]
@@ -344,6 +346,8 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::path::Path;
+
     use crate::AbsoluteJoinError;
     use crate::AbsolutePath;
     use crate::AbsolutePathBuf;
@@ -353,7 +357,6 @@ mod test {
     use crate::NormalizationFailed;
     use crate::NotAbsolute;
     use crate::WasNotNormalized;
-    use std::path::Path;
 
     #[test]
     fn path_try_new() -> anyhow::Result<()> {
@@ -584,12 +587,13 @@ mod serde_tests {
 
 #[cfg(all(test, feature = "diesel"))]
 mod test_diesel {
+    use diesel::RunQueryDsl;
+
     use crate::diesel::QueryDsl;
     use crate::diesel_helpers::create_table;
     use crate::diesel_helpers::insert_values;
     use crate::AbsolutePath;
     use crate::AbsolutePathBuf;
-    use diesel::RunQueryDsl;
 
     #[derive(Queryable, Insertable, Clone, Debug, Eq, PartialEq)]
     #[diesel(table_name = crate::diesel_helpers::schema::test_files)]
