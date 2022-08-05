@@ -71,9 +71,7 @@ impl CombinedPath {
 
     /// Helper to resolve this path against the cwd.
     pub fn try_into_absolute_in_cwd(&self) -> Result<AbsolutePathBuf, NormalizationFailed> {
-        let cwd = std::env::current_dir().expect("there to be a cwd");
-        let abs_cwd = AbsolutePath::new_unchecked(&cwd);
-        self.try_into_absolute(abs_cwd)
+        self.try_into_absolute(&AbsolutePathBuf::current_dir())
     }
 
     pub fn is_relative(&self) -> bool {

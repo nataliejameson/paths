@@ -163,6 +163,21 @@ impl AbsolutePathBuf {
         Self::try_new(path).expect("an absolute path")
     }
 
+    /// Get an [`AbsolutePathBuf`] for the cwd.
+    ///
+    /// Panics if the working directory is missing or is not absolute.
+    pub fn current_dir() -> Self {
+        let cwd = std::env::current_dir().expect("there to be a cwd");
+        if cwd.is_absolute() {
+            Self::new_unchecked(cwd)
+        } else {
+            panic!(
+                "Got a non-absolute result from `std::env::current_dir()`: {}",
+                cwd.display()
+            );
+        }
+    }
+
     /// Get a reference to the internal Path object.
     pub fn as_path(&self) -> &Path {
         self.0.as_path()
