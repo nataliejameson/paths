@@ -4,6 +4,7 @@ use crate::AbsolutePath;
 use crate::AbsolutePathBuf;
 use crate::NormalizationFailed;
 use ref_cast::RefCast;
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
@@ -76,6 +77,13 @@ impl Deref for RelativePath {
 
     fn deref(&self) -> &Self::Target {
         self.as_path()
+    }
+}
+
+#[cfg(feature = "display")]
+impl std::fmt::Display for RelativePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0.display(), f)
     }
 }
 
@@ -227,6 +235,13 @@ impl Deref for RelativePathBuf {
 
     fn deref(&self) -> &Self::Target {
         RelativePath::new_unchecked(&self.0)
+    }
+}
+
+#[cfg(feature = "display")]
+impl std::fmt::Display for RelativePathBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0.display(), f)
     }
 }
 

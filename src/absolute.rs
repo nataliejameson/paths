@@ -93,6 +93,13 @@ impl Deref for AbsolutePath {
     }
 }
 
+#[cfg(feature = "display")]
+impl std::fmt::Display for AbsolutePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.display().fmt(f)
+    }
+}
+
 #[cfg(feature = "serde")]
 impl serde::Serialize for AbsolutePath {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -235,6 +242,13 @@ impl Deref for AbsolutePathBuf {
 
     fn deref(&self) -> &Self::Target {
         AbsolutePath::new_unchecked(&self.0)
+    }
+}
+
+#[cfg(feature = "display")]
+impl std::fmt::Display for AbsolutePathBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.display().fmt(f)
     }
 }
 

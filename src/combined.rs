@@ -8,6 +8,7 @@ use crate::RelativePath;
 use crate::RelativePathBuf;
 use crate::WasNotNormalized;
 use ref_cast::RefCast;
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
@@ -95,6 +96,17 @@ impl Deref for CombinedPath {
 
     fn deref(&self) -> &Self::Target {
         self.as_path()
+    }
+}
+
+#[cfg(feature = "display")]
+impl std::fmt::Display for CombinedPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_relative() {
+            std::fmt::Display::fmt(&RelativePath::try_new(&self.0).unwrap().display(), f)
+        } else {
+            std::fmt::Display::fmt(&AbsolutePath::try_new(&self.0).unwrap().display(), f)
+        }
     }
 }
 
@@ -266,6 +278,16 @@ impl Deref for CombinedPathBuf {
 
     fn deref(&self) -> &Self::Target {
         self.as_path()
+    }
+}
+
+#[cfg(feature = "display")]
+impl std::fmt::Display for CombinedPathBuf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CombinedPathBuf::Relative(r) => std::fmt::Display::fmt(&r.display(), f),
+            CombinedPathBuf::Absolute(a) => std::fmt::Display::fmt(&a.display(), f),
+        }
     }
 }
 
