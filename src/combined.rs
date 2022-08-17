@@ -230,6 +230,7 @@ impl CombinedPathBuf {
         }
     }
 
+    /// Like `Path::to_string_lossy()`, but returns an owned string.
     pub fn to_lossy_string(&self) -> String {
         match self {
             CombinedPathBuf::Relative(r) => r.to_lossy_string(),
@@ -237,6 +238,7 @@ impl CombinedPathBuf {
         }
     }
 
+    /// Ensures that the parent path, if there is one, exists.
     pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
         crate::create_parent_dir(self)
     }

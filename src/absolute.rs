@@ -80,18 +80,24 @@ impl AbsolutePath {
         })
     }
 
+    /// Get a reference to the parent directory, if one exists.
     pub fn parent(&self) -> Option<&AbsolutePath> {
         self.0.parent().map(AbsolutePath::new_unchecked)
     }
 
+    /// Like `Path::to_string_lossy()`, but returns an owned string.
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
 
+    /// Ensures that the parent path, if there is one, exists.
     pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
         crate::create_parent_dir(self)
     }
 
+    /// Gets the relative path between two absolute paths.
+    ///
+    /// e.g. `/foo/bar/baz` relative to `/foo/baz/quz` would yield `../../bar/baz`
     pub fn relative_to(&self, other: &AbsolutePath) -> Result<RelativePathBuf, RelativeToError> {
         if self == other {
             return Err(RelativeToError::PathsAreIdentical);
@@ -263,14 +269,17 @@ impl AbsolutePathBuf {
         })
     }
 
+    /// Get a reference to the parent directory, if one exists.
     pub fn parent(&self) -> Option<&AbsolutePath> {
         self.0.parent().map(AbsolutePath::new_unchecked)
     }
 
+    /// Like `Path::to_string_lossy()`, but returns an owned string.
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
 
+    /// Ensures that the parent path, if there is one, exists.
     pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
         crate::create_parent_dir(self)
     }

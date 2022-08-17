@@ -67,10 +67,12 @@ impl RelativePath {
         abs.join_relative(self)
     }
 
+    /// Like `Path::to_string_lossy()`, but returns an owned string.
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
 
+    /// Ensures that the parent path, if there is one, exists.
     pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
         crate::create_parent_dir(self)
     }
@@ -216,10 +218,12 @@ impl RelativePathBuf {
         abs.join_relative(self.as_relative_path())
     }
 
+    /// Like `Path::to_string_lossy()`, but returns an owned string.
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
 
+    /// Ensures that the parent path, if there is one, exists.
     pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
         crate::create_parent_dir(self)
     }
