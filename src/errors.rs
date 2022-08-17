@@ -102,3 +102,9 @@ impl From<AbsoluteJoinError> for CombinedJoinError {
         }
     }
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum RelativeToError {
+    #[error("Provided paths are identical, and cannot be relativized")]
+    PathsAreIdentical,
+}

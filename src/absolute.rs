@@ -3,6 +3,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use itertools::EitherOrBoth;
+use itertools::Itertools;
 use ref_cast::RefCast;
 
 use crate::AbsoluteJoinError;
@@ -12,6 +14,8 @@ use crate::JoinedAbsolute;
 use crate::NormalizationFailed;
 use crate::NotAbsolute;
 use crate::RelativePath;
+use crate::RelativePathBuf;
+use crate::RelativeToError;
 use crate::WasNotNormalized;
 
 /// An absolute path. This must be normalized to begin with.
@@ -82,6 +86,40 @@ impl AbsolutePath {
 
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
+    }
+
+    pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
+        crate::create_parent_dir(self)
+    }
+
+    pub fn relative_to(&self, other: &AbsolutePath) -> Result<RelativePathBuf, RelativeToError> {
+        if self == other {
+            return Err(RelativeToError::PathsAreIdentical);
+        }
+        // TODO: Check how this actually works on windows, especially on different roots
+        let mut diverged = false;
+        let mut upward_path = PathBuf::new();
+        let mut new_path = PathBuf::new();
+        for components in self.0.components().zip_longest(other.components()) {
+            match components {
+                EitherOrBoth::Both(l, r) => {
+                    if l != r || diverged {
+                        diverged = true;
+                        upward_path.push("..");
+                        new_path.push(l);
+                    }
+                }
+                EitherOrBoth::Left(l) => {
+                    diverged = true;
+                    new_path.push(l);
+                }
+                EitherOrBoth::Right(_) => {
+                    diverged = true;
+                    upward_path.push("..");
+                }
+            }
+        }
+        Ok(RelativePathBuf::try_new(upward_path.join(new_path)).unwrap())
     }
 }
 
@@ -232,6 +270,10 @@ impl AbsolutePathBuf {
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
+
+    pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
+        crate::create_parent_dir(self)
+    }
 }
 
 impl From<&AbsolutePath> for AbsolutePathBuf {
@@ -356,6 +398,7 @@ mod test {
     use crate::JoinedAbsolute;
     use crate::NormalizationFailed;
     use crate::NotAbsolute;
+    use crate::RelativePathBuf;
     use crate::WasNotNormalized;
 
     #[test]
@@ -539,6 +582,90 @@ mod test {
         );
         assert!(root.parent().is_none());
         assert!(abs_root.parent().is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn path_creates_parent_dirs() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let existing = temp.path().canonicalize()?.join("foo/bar");
+        let not_existing = temp.path().canonicalize()?.join("bar/baz");
+
+        let existing_file = AbsolutePathBuf::try_new(existing.join("quz"))?;
+        let not_existing_file = AbsolutePathBuf::try_new(not_existing.join("quz"))?;
+
+        std::fs::create_dir_all(&existing)?;
+
+        existing_file.as_absolute_path().ensure_parent_exists()?;
+        not_existing_file
+            .as_absolute_path()
+            .ensure_parent_exists()?;
+
+        assert!(existing.is_dir());
+        assert!(not_existing.is_dir());
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_creates_parent_dirs() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let existing = temp.path().canonicalize()?.join("foo/bar");
+        let not_existing = temp.path().canonicalize()?.join("bar/baz");
+
+        let existing_file = AbsolutePathBuf::try_new(existing.join("quz"))?;
+        let not_existing_file = AbsolutePathBuf::try_new(not_existing.join("quz"))?;
+
+        std::fs::create_dir_all(&existing)?;
+
+        existing_file.ensure_parent_exists()?;
+        not_existing_file.ensure_parent_exists()?;
+
+        assert!(existing.is_dir());
+        assert!(not_existing.is_dir());
+        Ok(())
+    }
+
+    #[test]
+    fn path_relative_to() -> anyhow::Result<()> {
+        let cwd = AbsolutePathBuf::current_dir();
+        assert!(cwd
+            .as_absolute_path()
+            .relative_to(cwd.as_absolute_path())
+            .is_err());
+
+        let test_cases = [
+            ("/foo/bar/baz", "/foo/bar/quz", "../baz"),
+            ("/foo/bar/baz", "/foo/other_bar/quz", "../../bar/baz"),
+            ("/foo/bar/baz", "/other_foo/bar/quz", "../../../foo/bar/baz"),
+            (
+                "/foo/bar/baz",
+                "/other_foo/other_bar/quz",
+                "../../../foo/bar/baz",
+            ),
+            ("/foo/bar/baz", "/foo/quz", "../bar/baz"),
+            ("/foo/bar/baz", "/quz", "../foo/bar/baz"),
+            ("/foo/bar", "/foo/bar/quz", ".."),
+            ("/foo", "/foo/bar/quz", "../.."),
+            ("/foo/quz", "/foo/bar/quz", "../../quz"),
+            ("/foo/bar/baz", "/foo/bar", "baz"),
+            ("/foo/bar/baz", "/foo", "bar/baz"),
+            ("/foo/bar/baz", "/", "foo/bar/baz"),
+        ];
+
+        for (l, r, e) in test_cases {
+            let actual =
+                AbsolutePath::new_unchecked(l).relative_to(AbsolutePath::new_unchecked(r))?;
+            assert_eq!(
+                RelativePathBuf::new_unchecked(e),
+                actual,
+                "Expected `{}` relative to `{}` to be `{}`. Got `{}`",
+                l,
+                r,
+                e,
+                actual
+            );
+        }
+
         Ok(())
     }
 }

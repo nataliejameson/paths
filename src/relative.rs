@@ -70,6 +70,10 @@ impl RelativePath {
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
+
+    pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
+        crate::create_parent_dir(self)
+    }
 }
 
 impl AsRef<Path> for RelativePath {
@@ -151,11 +155,16 @@ impl RelativePathBuf {
                 for c in p.components() {
                     match c.as_os_str() {
                         x if x == "." => {}
-                        x if x == ".." => {
-                            if new_pb.pop().is_none() {
+                        x if x == ".." => match new_pb.pop() {
+                            Some(y) if y == x => {
+                                new_pb.push(y);
                                 new_pb.push(x);
                             }
-                        }
+                            Some(_) => {}
+                            None => {
+                                new_pb.push(x);
+                            }
+                        },
                         x => {
                             new_pb.push(x);
                         }
@@ -209,6 +218,10 @@ impl RelativePathBuf {
 
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
+    }
+
+    pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
+        crate::create_parent_dir(self)
     }
 }
 
@@ -403,6 +416,10 @@ mod test {
             Path::new("../baz/quz.txt"),
             RelativePathBuf::try_new("foo/../bar/../../baz/./quz.txt")?.as_path()
         );
+        assert_eq!(
+            Path::new("../../bar"),
+            RelativePathBuf::try_new("../../foo/../bar")?.as_path()
+        );
 
         assert_eq!(
             NotRelative(cwd.join("foo.txt").display().to_string()),
@@ -437,6 +454,58 @@ mod test {
                 .as_path()
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn path_creates_parent_dirs() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let existing = AbsolutePathBuf::try_new(temp.path().canonicalize()?.join("foo/bar"))?;
+        let not_existing = AbsolutePathBuf::try_new(temp.path().canonicalize()?.join("bar/baz"))?;
+        let cwd = AbsolutePathBuf::current_dir();
+
+        let relative_existing = existing.relative_to(&cwd)?;
+        let relative_not_existing = not_existing.relative_to(&cwd)?;
+
+        let existing_file = relative_existing.join("quz")?;
+        let not_existing_file = relative_not_existing.join("quz")?;
+
+        std::fs::create_dir_all(&existing)?;
+
+        existing_file.as_relative_path().ensure_parent_exists()?;
+        not_existing_file
+            .as_relative_path()
+            .ensure_parent_exists()?;
+
+        assert!(existing.is_dir());
+        assert!(not_existing.is_dir());
+        assert!(relative_existing.is_dir());
+        assert!(relative_not_existing.is_dir());
+        Ok(())
+    }
+
+    #[test]
+    fn path_buf_creates_parent_dirs() -> anyhow::Result<()> {
+        let temp = tempfile::tempdir()?;
+        let existing = AbsolutePathBuf::try_new(temp.path().canonicalize()?.join("foo/bar"))?;
+        let not_existing = AbsolutePathBuf::try_new(temp.path().canonicalize()?.join("bar/baz"))?;
+        let cwd = AbsolutePathBuf::current_dir();
+
+        let relative_existing = existing.relative_to(&cwd)?;
+        let relative_not_existing = not_existing.relative_to(&cwd)?;
+
+        let existing_file = relative_existing.join("quz")?;
+        let not_existing_file = relative_not_existing.join("quz")?;
+
+        std::fs::create_dir_all(&existing)?;
+
+        existing_file.ensure_parent_exists()?;
+        not_existing_file.ensure_parent_exists()?;
+
+        assert!(existing.is_dir());
+        assert!(not_existing.is_dir());
+        assert!(relative_existing.is_dir());
+        assert!(relative_not_existing.is_dir());
         Ok(())
     }
 }

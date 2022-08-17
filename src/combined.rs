@@ -87,6 +87,10 @@ impl CombinedPath {
     pub fn to_lossy_string(&self) -> String {
         self.0.to_string_lossy().to_string()
     }
+
+    pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
+        crate::create_parent_dir(self)
+    }
 }
 
 impl AsRef<Path> for CombinedPath {
@@ -231,6 +235,10 @@ impl CombinedPathBuf {
             CombinedPathBuf::Relative(r) => r.to_lossy_string(),
             CombinedPathBuf::Absolute(a) => a.to_lossy_string(),
         }
+    }
+
+    pub fn ensure_parent_exists(&self) -> std::io::Result<()> {
+        crate::create_parent_dir(self)
     }
 }
 

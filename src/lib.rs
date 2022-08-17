@@ -5,6 +5,8 @@ mod combined;
 mod errors;
 mod relative;
 
+use std::path::Path;
+
 pub use absolute::AbsolutePath;
 pub use absolute::AbsolutePathBuf;
 pub use combined::CombinedPath;
@@ -13,17 +15,19 @@ pub use errors::*;
 pub use relative::RelativePath;
 pub use relative::RelativePathBuf;
 
+/// If the path has a parent, create that parent directory and all of its parent dirs
+/// using [`std::fs::create_dir_all()`]
+fn create_parent_dir<P: AsRef<Path>>(p: P) -> std::io::Result<()> {
+    if let Some(parent) = p.as_ref().parent() {
+        std::fs::create_dir_all(parent)
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(all(test, feature = "diesel"))]
 #[macro_use]
 extern crate diesel;
-
-// Absolute + Relative
-// Serialize / Deserialize
-// Buf / NonBuf versions
-// Display
-// db serializable
-// Normalize
-// Check "join" is relative for RelativePath
 
 #[cfg(all(test, feature = "diesel"))]
 pub(crate) mod diesel_helpers {
