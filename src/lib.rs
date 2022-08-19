@@ -4,6 +4,7 @@ mod absolute;
 mod combined;
 mod errors;
 mod relative;
+mod resolved_absolute;
 
 use std::path::Path;
 
@@ -14,6 +15,7 @@ pub use combined::CombinedPathBuf;
 pub use errors::*;
 pub use relative::RelativePath;
 pub use relative::RelativePathBuf;
+pub use resolved_absolute::ResolvedAbsolutePathBuf;
 
 /// If the path has a parent, create that parent directory and all of its parent dirs
 /// using [`std::fs::create_dir_all()`]
