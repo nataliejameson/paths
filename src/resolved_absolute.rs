@@ -30,6 +30,11 @@ impl ResolvedAbsolutePathBuf {
     pub(crate) fn new_unchecked<P: Into<PathBuf> + ?Sized>(path: P) -> Self {
         Self::try_new(path).expect("an absolute path")
     }
+
+    /// Get a new [`AbsolutePath`] referencing the internal Path object.
+    pub fn as_absolute_path(&self) -> &AbsolutePath {
+        &self.0
+    }
 }
 
 impl FromStr for ResolvedAbsolutePathBuf {
