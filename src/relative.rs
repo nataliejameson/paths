@@ -182,8 +182,11 @@ impl RelativePathBuf {
         }
     }
 
-    #[allow(unused)]
-    pub(crate) fn new_unchecked<P: Into<PathBuf> + ?Sized>(path: P) -> Self {
+    /// Create an [`RelativePathBuf`] per [`RelativePathBuf::try_new`] that panics on an invalid path.
+    ///
+    /// This is mostly used for paths that are known ahead of time (e.g. static strings) to be
+    /// valid.
+    pub fn new_unchecked<P: Into<PathBuf> + ?Sized>(path: P) -> Self {
         Self::try_new(path).expect("a relative path")
     }
 
