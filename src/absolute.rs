@@ -41,7 +41,11 @@ impl AbsolutePath {
         }
     }
 
-    pub(crate) fn new_unchecked<P: AsRef<Path> + ?Sized>(path: &P) -> &Self {
+    /// Create an [`AbsolutePath`] per [`AbsolutePath::try_new`] that panics on an invalid path.
+    ///
+    /// This is mostly used for paths that are known ahead of time (e.g. static strings) to be
+    /// valid.
+    pub fn new_unchecked<P: AsRef<Path> + ?Sized>(path: &P) -> &Self {
         Self::try_new(path).expect("an absolute path")
     }
 
@@ -582,7 +586,7 @@ mod test {
         let root = Path::new("/");
 
         let abs_cwd = AbsolutePathBuf::try_new(&cwd)?;
-        let abs_root = AbsolutePathBuf::try_new(&root)?;
+        let abs_root = AbsolutePathBuf::try_new(root)?;
 
         assert!(cwd.parent().is_some());
         assert_eq!(
