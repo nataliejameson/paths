@@ -13,7 +13,7 @@ gazebo = { version = "0.8.0" }
 itertools = { version = "0.10.3" }
 ref-cast = { version = "1.0.8" }
 serde = { version = "1.0.143", features = ["derive"], optional = true }
-thiserror = { versio = "1.0.32" }
+thiserror = { version = "1.0.32" }
 
 [dev-dependencies]
 serde_json = { version = "1.0.83" }
