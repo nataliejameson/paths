@@ -171,7 +171,7 @@ mod serde_tests {
             cwd.join("../".repeat(cwd.components().count())).display()
         );
 
-        let expected = ResolvedAbsolutePathBuf::try_new(&cwd.join("foo/baz"))?;
+        let expected = ResolvedAbsolutePathBuf::try_new(cwd.join("foo/baz"))?;
         assert_eq!(
             expected,
             serde_json::from_str::<ResolvedAbsolutePathBuf>(&serialized_absolute)?

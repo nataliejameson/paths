@@ -8,24 +8,19 @@ authors = ["Natalie Jameson <natalie@natalie.wtf>"]
 
 [dependencies]
 anyhow = "1.0.58"
-async-trait = "0.1.56"
-derivative = "2.2.0"
 diesel = { version = "2.0.0-rc.1", features = ["sqlite", "r2d2", "chrono"], optional = true }
-dirs = "4.0.0"
-gazebo = "0.8.0"
-itertools = "0.10.3"
-log = "0.4.17"
-ref-cast = "1.0.8"
-serde = { version = "1.0.140", features = ["derive"], optional = true }
-serde_json = { version = "1.0.82", optional = true }
-thiserror = "1.0.31"
-tracing = "0.1.36"
+gazebo = { version = "0.8.0" }
+itertools = { version = "0.10.3" }
+ref-cast = { version = "1.0.8" }
+serde = { version = "1.0.143", features = ["derive"], optional = true }
+thiserror = { versio = "1.0.32" }
 
 [dev-dependencies]
-tempfile = "3.3.0"
+serde_json = { version = "1.0.83" }
+tempfile = { version = "3.3.0" }
 
 [features]
 default = ["serde", "display"]
 display = []
-serde = ["dep:serde", "dep:serde_json"]
+serde = ["dep:serde"]
 diesel = ["serde", "dep:diesel"]

@@ -466,7 +466,7 @@ mod test {
         );
 
         let back_to_root = "../".repeat(cwd.components().count() + 1);
-        let root = original.join(&back_to_root)?;
+        let root = original.join(back_to_root)?;
         assert!(root.is_absolute());
         assert_eq!(Path::new("/"), root.as_path());
 
@@ -717,7 +717,7 @@ mod serde_tests {
             cwd.join("../".repeat(cwd.components().count())).display()
         );
 
-        let expected = AbsolutePathBuf::try_new(&cwd.join("foo/baz"))?;
+        let expected = AbsolutePathBuf::try_new(cwd.join("foo/baz"))?;
         assert_eq!(
             expected,
             serde_json::from_str::<AbsolutePathBuf>(&serialized_good)?
